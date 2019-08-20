@@ -57,9 +57,19 @@ public static class HierarchyIndentHelper
         { "ReflectionProbe", typeof(ReflectionProbe) },
         { "VRC_MirrorReflection", null },
     };
+    private static readonly IDictionary<string, string> kUniVRMComponentAndIconNames = new Dictionary<string, string>()
+    {
+        { "VRMMeta", "VRC_AvatarDescriptor" },
+        { "VRMSpringBone", "DynamicBone" },
+        { "VRMSpringBoneColliderGroup", "DynamicBoneCollider" },
+    };
     private static readonly Type kDynamicBoneType = Type.GetType("DynamicBone, Assembly-CSharp");
+    private static readonly Type kVRMSpringBoneType = Type.GetType("VRM.VRMSpringBone, Assembly-CSharp");
 
     private static Dictionary<string, Texture2D> icon_resources_
+        = new Dictionary<string, Texture2D>();
+
+    private static Dictionary<string, Texture2D> optional_icon_resources_
         = new Dictionary<string, Texture2D>();
 
     private static IEnumerable<Transform> dynamic_bone_roots_ = new List<Transform>();
@@ -82,6 +92,11 @@ public static class HierarchyIndentHelper
                 : LoadIconTex2DFromPNG(kResourceDirPath + nameAndType.Key + kResourceSuffix);
             icon_resources_.Remove(nameAndType.Key);
             icon_resources_.Add(nameAndType.Key, icon);
+        }
+
+        foreach (KeyValuePair<string,string> componentAndIconName in kUniVRMComponentAndIconNames)
+        {
+            icon_resources_.Add(componentAndIconName.Key, icon_resources_[componentAndIconName.Value]);
         }
     }
 
@@ -134,16 +149,28 @@ public static class HierarchyIndentHelper
             var obj = EditorUtility.InstanceIDToObject(instance_id) as GameObject;
             if (obj != null)
             {
-                // シーンの最初のGameObjectであれば、シーン全体のDynamicBoneのm_Rootを取得する
-                if (kDynamicBoneType != null)
+                // シーンの最初のGameObjectであれば、シーン全体のDynamicBoneのm_Root、およびVRMSpringBoneのRootBonesを取得する
+                if (kDynamicBoneType != null || kVRMSpringBoneType != null)
                 {
                     var rootGameObjects = SceneManager.GetActiveScene().GetRootGameObjects();
                     if (rootGameObjects.FirstOrDefault() == obj)
                     {
-                        dynamic_bone_roots_ = rootGameObjects
-                            .SelectMany(root => root.GetComponentsInChildren(kDynamicBoneType))
-                            .Select(db => kDynamicBoneType.GetField("m_Root").GetValue(db) as Transform)
-                            .Where(db_root => db_root != null);
+                        dynamic_bone_roots_.Clear();
+                        if (kDynamicBoneType != null)
+                        {
+                            dynamic_bone_roots_.AddRange(rootGameObjects
+                                .SelectMany(root => root.GetComponentsInChildren(kDynamicBoneType))
+                                .Select(db => kDynamicBoneType.GetField("m_Root").GetValue(db) as Transform)
+                                .Where(db_root => db_root != null));
+                        }
+                        if (kVRMSpringBoneType != null)
+                        {
+                            dynamic_bone_roots_.AddRange(rootGameObjects
+                                .SelectMany(root => root.GetComponentsInChildren(kVRMSpringBoneType))
+                                .Select(sb => kVRMSpringBoneType.GetField("RootBones").GetValue(sb) as List<Transform>)
+                                .Where(root_bones => root_bones != null)
+                                .SelectMany(root_bones => root_bones));
+                        }
                     }
                 }
 
@@ -160,7 +187,7 @@ public static class HierarchyIndentHelper
 
     private static void DrawIcons_(Component[] components, Rect target_rect)
     {
-        // DynamicBoneのm_Rootの対象となるGameObject
+        // DynamicBoneのm_Root、またはVRMSpringBoneのRootBonesの対象となるGameObject
         if (dynamic_bone_roots_.Contains(components[0].transform))
         {
             DrawIcon_(icon_resources_["DynamicBoneRoot"], target_rect);
@@ -174,10 +201,19 @@ public static class HierarchyIndentHelper
                 if (component != null && component.GetType().Name.Contains(icon_info.Key))
                 {
                     var icon = icon_info.Value;
-                    // DynamicBoneのm_Rootに対象となるTransformが設定されていない場合は専用のアイコンに切り替える
+                    // DynamicBoneのm_Root、またはVRMSpringBoneのRootBonesに対象となるTransformが設定されていない場合は専用のアイコンに切り替える
                     if (kDynamicBoneType != null && component.GetType() == kDynamicBoneType)
                     {
                         if (kDynamicBoneType.GetField("m_Root").GetValue(component) == null)
+                        {
+                            icon = icon_resources_["DynamicBonePartial"];
+                        }
+                    }
+                    else if (kVRMSpringBoneType != null && component.GetType() == kVRMSpringBoneType)
+                    {
+                        var root_bones
+                            = kVRMSpringBoneType.GetField("RootBones").GetValue(component) as List<Transform>;
+                        if (root_bones == null || root_bones.All(root_bone => root_bone == null))
                         {
                             icon = icon_resources_["DynamicBonePartial"];
                         }

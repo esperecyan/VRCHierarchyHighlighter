@@ -44,18 +44,22 @@ public static class HierarchyIndentHelper
     private const int kIconSize = 20;
     private static readonly IDictionary<string, Type> kIconNamesAndTypes = new Dictionary<string, Type>()
     {
+        { "Collider", typeof(CapsuleCollider) },
         { "DynamicBone", null },
         { "DynamicBonePartial", null },
         { "DynamicBoneRoot", null },
         { "DynamicBoneCollider", null },
         { "MeshRenderer", typeof(MeshRenderer) },
         { "SkinnedMeshRenderer", typeof(SkinnedMeshRenderer) },
+        { "Animator", typeof(Animator) },
         { "VRC_AvatarDescriptor", null },
         { "AudioSource", typeof(AudioSource) },
         { "Light", typeof(Light) },
         { "LightProbe", typeof(LightProbes) },
         { "ReflectionProbe", typeof(ReflectionProbe) },
+        { "Cloth", typeof(Cloth) },
         { "VRC_MirrorReflection", null },
+        { "VRC_Station", null },
     };
     private static readonly Type kDynamicBoneType = Type.GetType("DynamicBone, Assembly-CSharp");
 
@@ -167,9 +171,9 @@ public static class HierarchyIndentHelper
             return;
         }
 
-        foreach (Component component in components)
+        foreach (var icon_info in icon_resources_.Reverse())
         {
-            foreach (var icon_info in icon_resources_.Reverse())
+            foreach (Component component in components)
             {
                 if (component != null && component.GetType().Name.Contains(icon_info.Key))
                 {
